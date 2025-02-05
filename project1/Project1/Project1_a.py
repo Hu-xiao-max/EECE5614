@@ -67,9 +67,9 @@ class accr():
                         q = self.Q2_cal()
                 #！！！！！！！！！！！！define alpha！！！！！！！！！！！！！！！！！
                 # alpha = 1
-                # alpha = 0.9 ** k
+                alpha = 0.9 ** k
                 # alpha = 1 / (1 + np.log(1 + k))
-                alpha= 1/k
+                # alpha= 1/k
 
                 if self.choose_q1:
                     Q1 = Q1 + alpha*(q-Q1_before)
@@ -92,20 +92,20 @@ class accr():
             Q2_sum += Q2
             # print('Q1 ', Q1)
             # print('Q1 & Q2', Q1, Q2)
-        print('SUM', Q1_sum, Q2_sum)
+        #print('SUM', Q1_sum, Q2_sum)
         return list_ACC, Q1_sum/100, Q2_sum/100
     
 
 if __name__ == '__main__':
     test = accr()
     list1, Q1_average_100, Q2_average_100 = test.acc_cacl(policy_greeedy  = 0.0)
-    print('Epsilon  = 0.0',Q1_average_100, Q2_average_100)
+    print('Epsilon  = 0.0||',Q1_average_100, Q2_average_100)
     list2, Q1_average_100, Q2_average_100 = test.acc_cacl(policy_greeedy  = 0.1)
-    print('Epsilon  = 0.1',Q1_average_100, Q2_average_100)
+    print('Epsilon  = 0.1||',Q1_average_100, Q2_average_100)
     list3, Q1_average_100, Q2_average_100 = test.acc_cacl(policy_greeedy  = 0.2)
-    print('Epsilon  = 0.2',Q1_average_100, Q2_average_100)
+    print('Epsilon  = 0.2||',Q1_average_100, Q2_average_100)
     list4, Q1_average_100, Q2_average_100 = test.acc_cacl(policy_greeedy  = 0.5)
-    print('Epsilon  = 0.5',Q1_average_100, Q2_average_100)
+    print('Epsilon  = 0.5||',Q1_average_100, Q2_average_100)
 
     plt.figure(figsize=(10, 6))
     
