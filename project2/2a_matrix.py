@@ -151,9 +151,9 @@ for _ in range(100):
     for _ in range(200):
         i = decimal_state = int("".join(map(str, current_state)), 2)
 
-        action = action_space[best_actions[i]]
+        #action = action_space[best_actions[i]]
 
-        #action = action_space[0]
+        action = action_space[0]
 
         # Sample next state using M(a)
         next_state = sample_next_state(current_state, action, transition_matrices)

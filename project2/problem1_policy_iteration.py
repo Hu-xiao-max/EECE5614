@@ -9,8 +9,8 @@ import matplotlib.pyplot as plt
 class policy:
     def __init__(self):
         
-        self.p = 0.025
-        self.gamma= 0.5
+        self.p = 0.5
+        self.gamma= 0.99
         self.theta = 0.01
         self.env = self.env_define()
         self.Value = np.zeros([20, 20])
@@ -94,8 +94,9 @@ class policy:
         # initial policy all left
         before_value = np.full([20, 20], 0)
         before_Action = np.full([20, 20], 13)# init policy all left
-
+        count_step = 0
         while True:
+            count_step +=1
             while True:
                 for ev_i in range(self.env.shape[0]):  # Iterate over rows
                     for ev_j in range(self.env.shape[1]):  # Iterate over columns
@@ -136,6 +137,7 @@ class policy:
          
             
         State_Matrix = self.Value.astype(int)
+        # State_Matrix = self.Value
         print(State_Matrix)
 
         annot_matrix = np.where(self.env == 1, "", State_Matrix)
@@ -184,6 +186,7 @@ class policy:
 
         # 显示图像
         plt.show()
+        print('count_step', count_step)
                 
 
                     
@@ -312,6 +315,10 @@ class policy:
             # print('wall')
             # 撞墙就返回
             reward = -1.8
+            if self.env[o_i, o_j] == 2:
+                reward += -5
+            elif self.env[o_i, o_j] == 3:
+                reward += -10
             return o_i, o_j, reward
         
         elif self.env[t_i, t_j] == 2:
