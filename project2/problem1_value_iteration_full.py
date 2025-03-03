@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 class policy:
     def __init__(self):
         
-        self.p = 0.025
+        self.p = 0.025# 0.4
         self.gamma= 0.5
         self.theta = 0.01
         self.env = self.env_define()
@@ -93,54 +93,33 @@ class policy:
         End:[3, 13]
         '''
         
-        # 1-p move to anticipated state 2/p to prependicular
-        # initial policy all left
         before_value = np.full([20, 20], 0)
-        before_Action = np.full([20, 20], 13)# init policy all left
+
         count_step = 0
         while True:
-            count_step +=1
-            while True:
-                for ev_i in range(self.env.shape[0]):  # Iterate over rows
-                    for ev_j in range(self.env.shape[1]):  # Iterate over columns
-                        if not self.env[ev_i,ev_j] == 1 :
-                            # sum p(s' | s a)[R(s,a,s')+gamma V_{n-1}(s)]
-                            if self.init:
-                                pick_action = 13
-                                self.Value[ev_i, ev_j] = self.value_action(pick_action, ev_i, ev_j, before_value)
-                                
-                            else:
-                                pick_action = self.Action[ev_i, ev_j]
-                                self.Value[ev_i, ev_j] = self.value_action(pick_action, ev_i, ev_j, before_value)
-                            
-                            self.Value[3,13] = 0# 终点为0！importatn!!
+            count_step += 1
+            for i in range(self.env.shape[0]):  # Iterate over rows
+                for j in range(self.env.shape[1]):  # Iterate over columns
+                    if not self.env[i, j] == 1 :
+                        # sum p(s' | s a)[R(s,a,s')+gamma V_{n-1}(s)]
+                        v_action_list = []
+                        for action_slect in self.action_list:# up,down,left,right
+                            v_for_max_action = self.value_action(action_slect, i, j, before_value)
+                            v_action_list.append(v_for_max_action)
+                        max_action = self.action_list[v_action_list.index(max(v_action_list))]
+                        self.Action[i, j] = max_action
 
-                if np.max(np.abs(self.Value-before_value)) < self.theta:
-                    break
-                before_value = copy.deepcopy(self.Value)
-            self.init = False 
+                        self.Value[i, j] = max(v_action_list)
+            self.Value[3,13] = 0# 终点为0
+            
 
-            # Policy Improvement
-            for improve_i in range(self.env.shape[0]):  # Iterate over rows
-                    for improve_j in range(self.env.shape[1]):  # Iterate over columns
-                        if not self.env[improve_i, improve_j]  == 1 :
-                            # sum p(s' | s a)[R(s,a,s')+gamma V_{n-1}(s)]
-                            v_action_list = []
-                            for action_slect in self.action_list:# up,down,left,right
-                                v_for_max_action = self.value_action(action_slect, improve_i, improve_j, before_value)
-                                v_action_list.append(v_for_max_action)
-                            max_action = self.action_list[v_action_list.index(max(v_action_list))]
-                            self.Action[improve_i, improve_j] = max_action
-                    
-            if np.all(self.Action == before_Action):
+            if np.max(np.abs(self.Value-before_value)) < self.theta:
                 break
-            before_Action = copy.deepcopy(self.Action)
-
-
+            before_value = copy.deepcopy(self.Value)
+            
          
             
         State_Matrix = self.Value.astype(int)
-        # State_Matrix = self.Value
         print(State_Matrix)
 
         annot_matrix = np.where(self.env == 1, "", State_Matrix)
@@ -152,11 +131,8 @@ class policy:
         plt.show()
 
 
-        # directions = ["up", "right", "down", "left"]
-        # [11,12,13,14] up,down,left,right
-        # directions = [11, 14, 12, 13]
         policy = self.Action.flatten()
-        print('!!!!!!!!!!!!!!!!!', policy)
+        # print('!!!!!!!!!!!!!!!!!', policy)
         # print(len(policy))
 
         # 将数据重塑为 20x20 矩阵
@@ -182,15 +158,14 @@ class policy:
         # 绘制箭头
         for i in range(20):
             for j in range(20):
-                if not (i, j) == (3, 13):
-                    value = data[i, j]
-                    if value in arrow_map:
-                        dx, dy = arrow_map[value]
-                        ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
+                value = data[i, j]
+                if value in arrow_map:
+                    dx, dy = arrow_map[value]
+                    ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
 
         # 显示图像
-        
         plt.show()
+
 
         self.visualize_path()
         print('count_step', count_step)

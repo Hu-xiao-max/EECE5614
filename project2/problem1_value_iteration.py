@@ -17,6 +17,13 @@ class policy:
         self.Action = np.zeros([20, 20])
         self.action_list= [11,12,13,14]#up,down,left,right
 
+        self.action_map = {11: (-1, 0), 12: (1, 0), 13: (0, -1), 14: (0, 1)}
+
+
+        self.init = True
+
+        self.end = [3, 13]
+
 
         self.init = True
 
@@ -30,6 +37,8 @@ class policy:
             4: [0, 0, 1],        # Green
             5: [0, 1, 0]         # Blue
         }
+
+        
 
         pass
 
@@ -73,8 +82,9 @@ class policy:
 
         before_value = np.full([20, 20], 0)
 
-
+        count_step = 0
         while True:
+            count_step += 1
             for i in range(self.env.shape[0]):  # Iterate over rows
                 for j in range(self.env.shape[1]):  # Iterate over columns
                     if not self.env[i, j] == 1 :
@@ -141,6 +151,59 @@ class policy:
                     ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
 
         # 显示图像
+        plt.show()
+
+
+        self.visualize_path()
+        print('count_step', count_step)
+
+
+    def extract_path(self):
+        position = [15,4]
+        self.path = [position]
+        visited = []
+
+        while position != [3, 13] and position not in visited:
+            visited.append(position)
+            i, j = position
+            action = self.Action[i, j]
+            if action in self.action_map:
+                di, dj = self.action_map[action]
+                next_position = (i + di, j + dj)
+                if 0 <= next_position[0] < self.env.shape[0] and 0 <= next_position[1] < self.env.shape[1] and self.env[next_position] != 1:
+                    position = next_position
+                    self.path.append(position)
+                else:
+                    break
+            else:
+                break
+
+    def visualize_path(self):
+        self.extract_path()
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlim(-0.5, 19.5)
+        ax.set_ylim(-0.5, 19.5)
+        ax.set_frame_on(False)
+
+        # Draw grid background
+        for i in range(20):
+            for j in range(20):
+                color = self.colors[int(self.env[i, j])]
+                ax.add_patch(plt.Rectangle((j - 0.5, 19 - i - 0.5), 1, 1, color=color, ec='gray'))
+
+        # Draw path
+        for idx in range(len(self.path) - 4):
+            i1, j1 = self.path[idx]
+            i2, j2 = self.path[idx + 1]
+            
+            # Skip drawing an arrow if the next position is the endpoint
+            if (i1, j1) == self.end:
+                continue
+            else:
+                ax.arrow(j1, 19 - i1, j2 - j1, -(i2 - i1), head_width=0.2, head_length=0.2, fc='black', ec='black')
+        plt.title("Optimal Path from Start to End")
         plt.show()
 
                 

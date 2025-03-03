@@ -30,7 +30,7 @@ C = np.array([
 def v(x):
     return (x > 0).astype(int)
 
-def compute_transition_matrix(action, p):
+def compute_transition_matrix(action, p=0.1):
     """
     Return an N×N transition matrix for the given action under noise p.
     """
@@ -42,9 +42,8 @@ def compute_transition_matrix(action, p):
             T[i, j] = (p ** dist) * ((1 - p) ** (4 - dist))
     return T
 
-# Set transition probability p=0.48
 transition_matrices = {
-    tuple(a): compute_transition_matrix(a, p=0.48) for a in action_space
+    tuple(a): compute_transition_matrix(a, p=0.1) for a in action_space
 }
 
 ##############################################################################
@@ -127,7 +126,7 @@ for _ in range(100):
     episode_reward = 0
     for _ in range(200):
         i = int("".join(map(str, current_state)), 2)
-        action = action_space[best_actions[i]]
+        action = action_space[0]
         next_state = sample_next_state(current_state, action, transition_matrices)
         current_state = next_state
         reward = sum(current_state)

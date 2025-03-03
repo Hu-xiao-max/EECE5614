@@ -1,6 +1,7 @@
 import itertools
 import numpy as np
 import pandas as pd
+import random
 
 ##############################################################################
 # 1. Define states and actions
@@ -35,7 +36,7 @@ def compute_transition_matrix(action, p=0.05):
         s_expected = np.bitwise_xor(v(C @ s_i), action)
         for j, s_j in enumerate(state_space):
             dist = np.sum(np.abs(s_j - s_expected))
-            T[i,j] = (p**dist) * ((1 - p)**(4 - dist))
+            T[i, j] = (p ** dist) * ((1 - p) ** (4 - dist))
     return T
 
 transition_matrices = {tuple(a): compute_transition_matrix(a, p=0.05) for a in action_space}
@@ -64,23 +65,18 @@ for a in action_space:
     a_key = tuple(a)
     M_a = transition_matrices[a_key]
     R_ss_a = reward_matrices[a_key]
-    hadamard = M_a * R_ss_a
-    r_a = hadamard.dot(ones)
-    expected_reward_vectors[a_key] = r_a
+    expected_reward_vectors[a_key] = (M_a * R_ss_a).dot(ones)
 
 ##############################################################################
 # 5. Policy Iteration
 ##############################################################################
 gamma = 0.9
 theta = 1e-2
-
-# 1. Initialize a random policy
-policy = np.random.choice(num_actions, num_states)  # 随机初始化策略
-V = np.zeros(num_states)  # 价值函数初始化
+policy = np.random.choice(num_actions, num_states)
+V = np.zeros(num_states)
 
 policy_stable = False
 while not policy_stable:
-    # 2. 策略评估（Policy Evaluation）
     while True:
         delta = 0
         for i in range(num_states):
@@ -93,23 +89,10 @@ while not policy_stable:
         if delta < theta:
             break
 
-    # 3. 策略改进（Policy Improvement）
     policy_stable = True
     for i in range(num_states):
         old_action = policy[i]
-        best_action = None
-        best_value = -np.inf
-
-        for a_idx, a in enumerate(action_space):
-            a_key = tuple(a)
-            r_a = expected_reward_vectors[a_key]
-            M_a = transition_matrices[a_key]
-            total_value = r_a[i] + gamma * np.dot(M_a[i, :], V)
-
-            if total_value > best_value:
-                best_value = total_value
-                best_action = a_idx
-
+        best_action = np.argmax([expected_reward_vectors[tuple(a)][i] + gamma * np.dot(transition_matrices[tuple(a)][i, :], V) for a in action_space])
         if old_action != best_action:
             policy_stable = False
         policy[i] = best_action
@@ -122,48 +105,34 @@ optimal_policy = {
     for i in range(num_states)
 }
 
-print(optimal_policy)
 policy_df = pd.DataFrame(optimal_policy.items(), columns=["State", "Optimal Action"])
 print(policy_df)
-
-# Optionally save to CSV
 policy_df.to_csv("optimal_policy.csv", index=False)
 print("Optimal policy saved as 'optimal_policy.csv'")
 
-
-
-import random
-# Define function to sample next state based on transition matrix M(a)
+##############################################################################
+# 7. Simulate policy execution
+##############################################################################
 def sample_next_state(current_state, action, transition_matrices):
-    """Sample next state based on transition probabilities from M(a)."""
-    current_index = state_space.index(list(current_state))  # Get index of current state
+    current_index = state_space.index(list(current_state))
     action_key = tuple(action)
-    transition_probs = transition_matrices[action_key][current_index]  # Get transition probabilities
-    next_state_index = np.random.choice(len(state_space), p=transition_probs)  # Sample next state
+    transition_probs = transition_matrices[action_key][current_index]
+    next_state_index = np.random.choice(len(state_space), p=transition_probs)
     return state_space[next_state_index]
 
 initial_state = random.choice(state_space)
 current_state = initial_state
 
-
 total_reward = 0
 for _ in range(100):
     episode_reward = 0
     for _ in range(200):
-        i = decimal_state = int("".join(map(str, current_state)), 2)
         key = tuple(current_state)
-
         action = optimal_policy.get(key)
-
-        # Sample next state using M(a)
         next_state = sample_next_state(current_state, action, transition_matrices)
-
-        # Move to next state
         current_state = next_state
+        reward = sum(current_state)
+        episode_reward += reward
+    total_reward += episode_reward
 
-        reward = current_state[0] + current_state[1] + current_state[2] + current_state[3]
-
-        episode_reward +=reward
-    total_reward +=episode_reward
-
-print(total_reward/200/100)
+print(total_reward / (200 * 100))
