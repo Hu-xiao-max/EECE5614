@@ -21,6 +21,7 @@ class policy:
         self.Value_right = np.zeros([20, 20])
         self.Value_up = np.zeros([20, 20])
         self.Value_down = np.zeros([20, 20])
+        self.Q_value_list = [self.Value_up, self.Value_down, self.Value_left, self.Value_right]
 
         self.Action = np.zeros([20, 20])
         self.action_list= [11,12,13,14]#up,down,left,right
@@ -104,17 +105,105 @@ class policy:
         Take action observe r, s
         Q(s,a) <- Q(s,a)+alpha[r+gamma max Q (s',a)-Q(s,a)]
         
-        
         '''
         start_state = [15,4]
         end_state = [3,13]
-        new_state = start_state
-        for _ in range(1000):#max 1000 or goal state
-            while new_state != end_state:
-                if not self.env[new_state] == 1 :# no wall
-                    select_action = self.greedy_action(new_state)
+        
+        episode = 0
+        reward_acc_list = []
+        for _ in range(1000):#1000 episodes
+            reward_list =[]
+            state = start_state
+            for _ in range(1000):#max 1000 or goal state    
+            
+                if not self.env[state[0], state[1]] == 1 :# no wall
+                    action_index = self.greedy_action(state)
+                    print('action_index', action_index)
+                    
+                    pick_action = self.action_list[action_index]
+
+                    self.Action[state[0], state[1]] = pick_action
+
+                    select_result = self.custom_random()
+
+                    next_i, next_j = self.action_take(pick_action, state[0], state[1], select_result)
+                    real_i, real_j, reward = self.next_state_reward(state[0], state[1], next_i, next_j)
+
+                    Q_select = self.Q_value_list[action_index]
+                    
+                    max_Q = max([self.Value_up[real_i, real_j], self.Value_down[real_i, real_j], 
+                                self.Value_left[real_i, real_j], self.Value_right[real_i, real_j]])
+
+                    Q_select[state[0], state[1]] = Q_select[state[0], state[1]] + self.alpha*(reward + self.gamma * max_Q - Q_select[state[0], state[1]])
+
+                    self.Action[state[0], state[1]] = pick_action
+
+                    state = [real_i, real_j]
+
+                    episode += 1
+
+                    if len(reward_list) == 0:
+                        reward_list.append(reward)
+                    else:
+                        reward_list.append(reward + reward_list[-1])
+
+                if state == end_state:
+                    break
+            print(reward_list[-1])
+            reward_acc_list.append(reward_list[-1])
+
+        policy = self.Action.flatten()
+        print('!!!!!!!!!!!!!!!!!', policy)
+        # print(len(policy))
+
+        # 将数据重塑为 20x20 矩阵
+        data = policy.reshape(20, 20)
+
+        # 创建绘图
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlim(-0.5, 19.5)
+        ax.set_ylim(-0.5, 19.5)
+        ax.set_frame_on(False)
+
+        # 绘制背景颜色
+        for i in range(20):
+            for j in range(20):
+                color = self.colors[int(self.env[i, j])]
+                ax.add_patch(plt.Rectangle((j - 0.5, 19 - i - 0.5), 1, 1, color=color, ec='gray'))
+
+        # 定义箭头方向
+        arrow_map = {11: (0, 0.3), 12: (0, -0.3), 13: (-0.3, 0), 14: (0.3, 0)}
+
+        # 绘制箭头
+        for i in range(20):
+            for j in range(20):
+                if not (i, j) == (3, 13):
+                    value = data[i, j]
+                    if value in arrow_map:
+                        dx, dy = arrow_map[value]
+                        ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
+
+        # 显示图像
+        
+        plt.show()
+
+        self.visualize_path()
+
+                # 绘制 reward 曲线
+        plt.figure(figsize=(8, 4))
+        plt.plot(reward_acc_list, label='Reward per step')
+        plt.xlabel('Step')
+        plt.ylabel('Reward')
+        plt.title('Reward over Time')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
 
 
+                    
 
     def value_action(self,pick_action, i, j, before_value):
         # modify this function to self.p action select then return the real state!!!
@@ -135,22 +224,37 @@ class policy:
         value = value1+value2+value3
 
         return value
+    
+    def custom_random(self):
+        p = self.p
+        r = random.random()
+        if r < 1 - p:
+            return 0
+        elif r < 1 - p + p / 2:
+            return 1
+        else:
+            return 2
 
 
     
     def greedy_action(self, state):
         if np.random.rand() < self.epsilon:
             # 探索：随机动作
-            return np.random.choice(self.action_list)
+            action_index_list = [0, 1, 2, 3]
+            return np.random.choice(action_index_list)
         else:
             # 利用：选择 Q 值最大的动作
             row, col = state
-            best_action_index = np.argmax(self.Value_up[row, col],
-                                            self.Value_down[row, col],
-                                            self.Value_left[row, col],
-                                            self.Value_right[row, col])
+            values = [
+                self.Value_up[row, col],
+                self.Value_down[row, col],
+                self.Value_left[row, col],
+                self.Value_right[row, col]
+            ]
+            best_action_index = values.index(max(values))
 
-            return self.action_list[best_action_index]
+
+            return best_action_index
                     
                 
      
