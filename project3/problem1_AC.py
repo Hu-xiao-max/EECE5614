@@ -9,12 +9,23 @@ import matplotlib.pyplot as plt
 class policy:
     def __init__(self):
         
-        self.p = 0.025# 0.4
-        self.gamma= 0.5
-        self.theta = 0.01
+      
+        self.p = 0.025
+        self.gamma= 0.96
+        self.alpha = 0.25
+        self.epsilon = 0.1
+        
         self.env = self.env_define()
-        self.Value = np.zeros([20, 20])
-        self.Action = np.zeros([20, 20])
+
+        self.Value_left = np.zeros([20, 20])
+        self.Value_right = np.zeros([20, 20])
+        self.Value_up = np.zeros([20, 20])
+        self.Value_down = np.zeros([20, 20])
+        self.Q_value_list = [self.Value_up, self.Value_down, self.Value_left, self.Value_right]
+
+        self.V = np.zeros([20, 20])
+        self.beta = 0.05
+        self.Action = np.ones([20, 20, 4]) / 4.0
         self.action_list= [11,12,13,14]#up,down,left,right
         self.action_map = {11: (-1, 0), 12: (1, 0), 13: (0, -1), 14: (0, 1)}
 
@@ -85,58 +96,81 @@ class policy:
 
         return Env
     
-
     def run_policy(self):
 
         '''
         start: [15, 4]
         End:[3, 13]
         '''
+        '''
+        使用 actor-critic 算法：
+        1. 根据当前策略（epsilon-greedy）选择动作 a
+        2. 执行动作 a，观察奖励 r 和下一状态 s'
+        3. 计算 TD 误差：delta = r + gamma * V(s') - V(s)
+        4. 更新状态值函数：V(s) <- V(s) + alpha * delta
+        5. 根据策略梯度更新策略：
+             对于执行的动作 a：pi(s,a) <- pi(s,a) + beta * delta * (1 - pi(s,a))
+             对于其他动作：pi(s,a') <- pi(s,a') - beta * delta * pi(s,a')
+        '''
+        start_state = [15,4]
+        end_state = [3,13]
         
-        before_value = np.full([20, 20], 0)
-
-        count_step = 0
-        while True:
-            count_step += 1
-            for i in range(self.env.shape[0]):  # Iterate over rows
-                for j in range(self.env.shape[1]):  # Iterate over columns
-                    if not self.env[i, j] == 1 :
-                        # sum p(s' | s a)[R(s,a,s')+gamma V_{n-1}(s)]
-                        v_action_list = []
-                        for action_slect in self.action_list:# up,down,left,right
-                            v_for_max_action = self.value_action(action_slect, i, j, before_value)
-                            v_action_list.append(v_for_max_action)
-                        max_action = self.action_list[v_action_list.index(max(v_action_list))]
-                        self.Action[i, j] = max_action
-
-                        self.Value[i, j] = max(v_action_list)
-            self.Value[3,13] = 0# 终点为0
+        episode = 0
+        reward_acc_list = []
+        for _ in range(1000):#1000 episodes
+            reward_list =[]
+            state = start_state
+            for _ in range(1000):#max 1000 or goal state    
             
-
-            if np.max(np.abs(self.Value-before_value)) < self.theta:
-                break
-            before_value = copy.deepcopy(self.Value)
-            
-         
-            
-        State_Matrix = self.Value.astype(int)
-        print(State_Matrix)
-
-        annot_matrix = np.where(self.env == 1, "", State_Matrix)
-
-        plt.figure(figsize=(15, 10))
-        sns.heatmap(self.env,fmt="",  cmap=sns.color_palette([self.colors[i] for i in range(6)]), cbar=False,annot=annot_matrix, linewidths=0.5, linecolor='black')
-        plt.axis('off')
-        plt.title('Maze Problem - State Numbers')
-        plt.show()
+                if not self.env[state[0], state[1]] == 1 :# no wall
+                    action_index = self.greedy_action(state)
+                    # print('action_index', action_index)
+                    
+                    pick_action = self.action_list[action_index]
 
 
-        policy = self.Action.flatten()
-        # print('!!!!!!!!!!!!!!!!!', policy)
-        # print(len(policy))
+                    select_result = self.custom_random()
 
-        # 将数据重塑为 20x20 矩阵
-        data = policy.reshape(20, 20)
+                    next_i, next_j = self.action_take(pick_action, state[0], state[1], select_result)
+                    real_i, real_j, reward = self.next_state_reward(state[0], state[1], next_i, next_j)
+
+                    s = tuple(state)
+                    s_next = (real_i, real_j)
+
+                    delta = reward + self.gamma * self.V[s_next] - self.V[s]
+                    self.V[s] += self.alpha * delta
+
+                    probs = self.Action[s]
+                    for a in range(4):
+                        if a == action_index:
+                            self.Action[s][a] += self.beta * delta * (1 - probs[a])
+                        else:
+                            self.Action[s][a] -= self.beta * delta * probs[a]
+                    self.Action[s] = np.clip(self.Action[s], 1e-5, 1.0)
+                    self.Action[s] /= np.sum(self.Action[s])
+
+                    state = [real_i, real_j]
+
+                    episode += 1
+
+                    if len(reward_list) == 0:
+                        reward_list.append(reward)
+                    else:
+                        reward_list.append(reward + reward_list[-1])
+
+                if state == end_state:
+                    break
+            print(reward_list[-1])
+            reward_acc_list.append(reward_list[-1])
+
+        # 根据当前策略概率，选出每个状态下概率最大的动作
+        best_actions = np.argmax(self.Action, axis=2)  # 得到每个状态最优动作的索引
+        # 将动作索引转换为实际动作代码（self.action_list 中的值）
+        data = np.zeros((20, 20), dtype=int)
+        for i in range(20):
+            for j in range(20):
+                data[i, j] = self.action_list[best_actions[i, j]]
+        print('!!!!!!!!!!!!!!!!! Best actions:', data)
 
         # 创建绘图
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -158,17 +192,71 @@ class policy:
         # 绘制箭头
         for i in range(20):
             for j in range(20):
-                value = data[i, j]
-                if value in arrow_map:
-                    dx, dy = arrow_map[value]
-                    ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
+                if not (i, j) == (3, 13):
+                    value = data[i, j]
+                    if value in arrow_map:
+                        dx, dy = arrow_map[value]
+                        ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
 
         # 显示图像
+        
+        plt.show()
+
+        self.visualize_path()
+
+        # 绘制 reward 曲线
+        plt.figure(figsize=(8, 4))
+        plt.plot(reward_acc_list, label='Reward per step')
+        plt.xlabel('Step')
+        plt.ylabel('Reward')
+        plt.title('Reward over Time')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
         plt.show()
 
 
-        self.visualize_path()
-        print('count_step', count_step)
+                    
+
+    def value_action(self,pick_action, i, j, before_value):
+        # modify this function to self.p action select then return the real state!!!
+        # policy Evalution
+        p = self.p
+        next_i1, next_j1 = self.action_take(pick_action, i, j, 0)
+        real_i1, real_j1, reward1 = self.next_state_reward(i, j, next_i1, next_j1)
+        value1 = (1-p)*(reward1+self.gamma*before_value[real_i1, real_j1])
+
+        next_i2, next_j2 = self.action_take(pick_action, i, j, 1)
+        real_i2, real_j2, reward2 = self.next_state_reward(i, j, next_i2, next_j2)
+        value2 = (p/2)*(reward2+self.gamma*before_value[real_i2, real_j2])
+
+        next_i3, next_j3 = self.action_take(pick_action, i, j, 2)
+        real_i3, real_j3, reward3 = self.next_state_reward(i, j, next_i3, next_j3)
+        value3 = (p/2)*(reward3+self.gamma*before_value[real_i3, real_j3])
+
+        value = value1+value2+value3
+
+        return value
+    
+    def custom_random(self):
+        p = self.p
+        r = random.random()
+        if r < 1 - p:
+            return 0
+        elif r < 1 - p + p / 2:
+            return 1
+        else:
+            return 2
+
+
+    
+    def greedy_action(self, state):
+        row, col = state
+        probs = self.Action[row, col]
+        return np.random.choice(4, p=probs)
+                    
+                
+     
 
 
     def extract_path(self):
@@ -179,7 +267,8 @@ class policy:
         while position != [3, 13] and position not in visited:
             visited.append(position)
             i, j = position
-            action = self.Action[i, j]
+            action_index = np.argmax(self.Action[i, j])
+            action = self.action_list[action_index]
             if action in self.action_map:
                 di, dj = self.action_map[action]
                 next_position = (i + di, j + dj)

@@ -9,11 +9,20 @@ import matplotlib.pyplot as plt
 class policy:
     def __init__(self):
         
-        self.p = 0.025# 0.4
-        self.gamma= 0.5
-        self.theta = 0.01
+      
+        self.p = 0.025
+        self.gamma= 0.96
+        self.alpha = 0.25
+        self.epsilon = 0.1
+        
         self.env = self.env_define()
-        self.Value = np.zeros([20, 20])
+
+        self.Value_left = np.zeros([20, 20])
+        self.Value_right = np.zeros([20, 20])
+        self.Value_up = np.zeros([20, 20])
+        self.Value_down = np.zeros([20, 20])
+        self.Q_value_list = [self.Value_up, self.Value_down, self.Value_left, self.Value_right]
+
         self.Action = np.zeros([20, 20])
         self.action_list= [11,12,13,14]#up,down,left,right
         self.action_map = {11: (-1, 0), 12: (1, 0), 13: (0, -1), 14: (0, 1)}
@@ -85,54 +94,77 @@ class policy:
 
         return Env
     
-
     def run_policy(self):
 
         '''
         start: [15, 4]
         End:[3, 13]
         '''
+        '''
+        Choose a form s using policy (eplison greedy policy) derived form Q
+        Take action observe r, s
+        Q(s,a) <- Q(s,a)+alpha[r+gamma Q (s',a')-Q(s,a)]
         
-        before_value = np.full([20, 20], 0)
-
-        count_step = 0
-        while True:
-            count_step += 1
-            for i in range(self.env.shape[0]):  # Iterate over rows
-                for j in range(self.env.shape[1]):  # Iterate over columns
-                    if not self.env[i, j] == 1 :
-                        # sum p(s' | s a)[R(s,a,s')+gamma V_{n-1}(s)]
-                        v_action_list = []
-                        for action_slect in self.action_list:# up,down,left,right
-                            v_for_max_action = self.value_action(action_slect, i, j, before_value)
-                            v_action_list.append(v_for_max_action)
-                        max_action = self.action_list[v_action_list.index(max(v_action_list))]
-                        self.Action[i, j] = max_action
-
-                        self.Value[i, j] = max(v_action_list)
-            self.Value[3,13] = 0# 终点为0
+        '''
+        start_state = [15,4]
+        end_state = [3,13]
+        
+        episode = 0
+        reward_acc_list = []
+        for _ in range(1000):#1000 episodes
+            reward_list =[]
+            state = start_state
+            for _ in range(1000):#max 1000 or goal state    
             
+                if not self.env[state[0], state[1]] == 1 :# no wall
+                    action_index = self.greedy_action(state)
+                    
+                    
+                    pick_action = self.action_list[action_index]
 
-            if np.max(np.abs(self.Value-before_value)) < self.theta:
-                break
-            before_value = copy.deepcopy(self.Value)
-            
-         
-            
-        State_Matrix = self.Value.astype(int)
-        print(State_Matrix)
+                    self.Action[state[0], state[1]] = pick_action
 
-        annot_matrix = np.where(self.env == 1, "", State_Matrix)
+                    select_result = self.custom_random()
 
-        plt.figure(figsize=(15, 10))
-        sns.heatmap(self.env,fmt="",  cmap=sns.color_palette([self.colors[i] for i in range(6)]), cbar=False,annot=annot_matrix, linewidths=0.5, linecolor='black')
-        plt.axis('off')
-        plt.title('Maze Problem - State Numbers')
-        plt.show()
+                    next_i, next_j = self.action_take(pick_action, state[0], state[1], select_result)
+                    real_i, real_j, reward = self.next_state_reward(state[0], state[1], next_i, next_j)
 
+                    Q_select = self.Q_value_list[action_index]
+                    
+                    '''
+                    ====next_q caclulate======
+                    '''
+                    next_state = [real_i, real_j]
+                    action_next_index = self.greedy_action(next_state)
+                    next_pick_action = self.action_list[action_next_index]
+                    next_select_result = self.custom_random()
+                    next_next_i, next_next_j = self.action_take(next_pick_action, state[0], state[1], next_select_result)
+                    next_real_i, next_real_j, next_reward = self.next_state_reward(state[0], state[1], next_next_i, next_next_j)
+                    Q_next_select = self.Q_value_list[action_next_index]
+                    next_Q = Q_next_select[next_real_i, next_real_j]
+
+
+
+                    Q_select[state[0], state[1]] = Q_select[state[0], state[1]] + self.alpha*(reward + self.gamma * next_Q - Q_select[state[0], state[1]])
+
+                    self.Action[state[0], state[1]] = pick_action
+
+                    state = [real_i, real_j]
+
+                    episode += 1
+
+                    if len(reward_list) == 0:
+                        reward_list.append(reward)
+                    else:
+                        reward_list.append(reward + reward_list[-1])
+
+                if state == end_state:
+                    break
+            print(reward_list[-1])
+            reward_acc_list.append(reward_list[-1])
 
         policy = self.Action.flatten()
-        # print('!!!!!!!!!!!!!!!!!', policy)
+        print('!!!!!!!!!!!!!!!!!', policy)
         # print(len(policy))
 
         # 将数据重塑为 20x20 矩阵
@@ -158,14 +190,191 @@ class policy:
         # 绘制箭头
         for i in range(20):
             for j in range(20):
-                value = data[i, j]
-                if value in arrow_map:
-                    dx, dy = arrow_map[value]
-                    ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
+                if not (i, j) == (3, 13):
+                    value = data[i, j]
+                    if value in arrow_map:
+                        dx, dy = arrow_map[value]
+                        ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
 
         # 显示图像
+        
         plt.show()
 
+        self.visualize_path()
+
+                # 绘制 reward 曲线
+        plt.figure(figsize=(8, 4))
+        plt.plot(reward_acc_list, label='Reward per step')
+        plt.xlabel('Step')
+        plt.ylabel('Reward')
+        plt.title('Reward over Time')
+        plt.legend()
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
+
+                    
+
+    def value_action(self,pick_action, i, j, before_value):
+        # modify this function to self.p action select then return the real state!!!
+        # policy Evalution
+        p = self.p
+        next_i1, next_j1 = self.action_take(pick_action, i, j, 0)
+        real_i1, real_j1, reward1 = self.next_state_reward(i, j, next_i1, next_j1)
+        value1 = (1-p)*(reward1+self.gamma*before_value[real_i1, real_j1])
+
+        next_i2, next_j2 = self.action_take(pick_action, i, j, 1)
+        real_i2, real_j2, reward2 = self.next_state_reward(i, j, next_i2, next_j2)
+        value2 = (p/2)*(reward2+self.gamma*before_value[real_i2, real_j2])
+
+        next_i3, next_j3 = self.action_take(pick_action, i, j, 2)
+        real_i3, real_j3, reward3 = self.next_state_reward(i, j, next_i3, next_j3)
+        value3 = (p/2)*(reward3+self.gamma*before_value[real_i3, real_j3])
+
+        value = value1+value2+value3
+
+        return value
+    
+    def custom_random(self):
+        p = self.p
+        r = random.random()
+        if r < 1 - p:
+            return 0
+        elif r < 1 - p + p / 2:
+            return 1
+        else:
+            return 2
+
+
+    
+    def greedy_action(self, state):
+        if np.random.rand() < self.epsilon:
+            # 探索：随机动作
+            action_index_list = [0, 1, 2, 3]
+            return np.random.choice(action_index_list)
+        else:
+            # 利用：选择 Q 值最大的动作
+            row, col = state
+            values = [
+                self.Value_up[row, col],
+                self.Value_down[row, col],
+                self.Value_left[row, col],
+                self.Value_right[row, col]
+            ]
+            best_action_index = values.index(max(values))
+
+
+            return best_action_index
+                    
+                
+     
+
+    def run1_policy(self):
+
+        '''
+        start: [15, 4]
+        End:[3, 13]
+        '''
+        
+        # 1-p move to anticipated state 2/p to prependicular
+        # initial policy all left
+        before_value = np.full([20, 20], 0)
+        before_Action = np.full([20, 20], 13)# init policy all left
+        count_step = 0
+        while True:
+            count_step +=1
+            while True:
+                for ev_i in range(self.env.shape[0]):  # Iterate over rows
+                    for ev_j in range(self.env.shape[1]):  # Iterate over columns
+                        if not self.env[ev_i,ev_j] == 1 :
+                            # sum p(s' | s a)[R(s,a,s')+gamma V_{n-1}(s)]
+                            if self.init:
+                                pick_action = 13
+                                self.Value[ev_i, ev_j] = self.value_action(pick_action, ev_i, ev_j, before_value)
+                                
+                            else:
+                                pick_action = self.Action[ev_i, ev_j]
+                                self.Value[ev_i, ev_j] = self.value_action(pick_action, ev_i, ev_j, before_value)
+                            
+                            self.Value[3,13] = 0# 终点为0！important!!
+
+                if np.max(np.abs(self.Value-before_value)) < self.theta:
+                    break
+                before_value = copy.deepcopy(self.Value)
+            self.init = False 
+
+            # Policy Improvement
+            for improve_i in range(self.env.shape[0]):  # Iterate over rows
+                    for improve_j in range(self.env.shape[1]):  # Iterate over columns
+                        if not self.env[improve_i, improve_j]  == 1 :
+                            # sum p(s' | s a)[R(s,a,s')+gamma V_{n-1}(s)]
+                            v_action_list = []
+                            for action_slect in self.action_list:# up,down,left,right
+                                v_for_max_action = self.value_action(action_slect, improve_i, improve_j, before_value)
+                                v_action_list.append(v_for_max_action)
+                            max_action = self.action_list[v_action_list.index(max(v_action_list))]
+                            self.Action[improve_i, improve_j] = max_action
+                    
+            if np.all(self.Action == before_Action):
+                break
+            before_Action = copy.deepcopy(self.Action)
+
+
+         
+            
+        State_Matrix = self.Value.astype(int)
+        # State_Matrix = self.Value
+        print(State_Matrix)
+
+        annot_matrix = np.where(self.env == 1, "", State_Matrix)
+
+        plt.figure(figsize=(15, 10))
+        sns.heatmap(self.env,fmt="",  cmap=sns.color_palette([self.colors[i] for i in range(6)]), cbar=False,annot=annot_matrix, linewidths=0.5, linecolor='black')
+        plt.axis('off')
+        plt.title('Maze Problem - State Numbers')
+        plt.show()
+
+
+        # directions = ["up", "right", "down", "left"]
+        # [11,12,13,14] up,down,left,right
+        # directions = [11, 14, 12, 13]
+        policy = self.Action.flatten()
+        print('!!!!!!!!!!!!!!!!!', policy)
+        # print(len(policy))
+
+        # 将数据重塑为 20x20 矩阵
+        data = policy.reshape(20, 20)
+
+        # 创建绘图
+        fig, ax = plt.subplots(figsize=(10, 10))
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlim(-0.5, 19.5)
+        ax.set_ylim(-0.5, 19.5)
+        ax.set_frame_on(False)
+
+        # 绘制背景颜色
+        for i in range(20):
+            for j in range(20):
+                color = self.colors[int(self.env[i, j])]
+                ax.add_patch(plt.Rectangle((j - 0.5, 19 - i - 0.5), 1, 1, color=color, ec='gray'))
+
+        # 定义箭头方向
+        arrow_map = {11: (0, 0.3), 12: (0, -0.3), 13: (-0.3, 0), 14: (0.3, 0)}
+
+        # 绘制箭头
+        for i in range(20):
+            for j in range(20):
+                if not (i, j) == (3, 13):
+                    value = data[i, j]
+                    if value in arrow_map:
+                        dx, dy = arrow_map[value]
+                        ax.arrow(j, 19 - i, dx, dy, head_width=0.2, head_length=0.2, fc='black', ec='black')
+
+        # 显示图像
+        
+        plt.show()
 
         self.visualize_path()
         print('count_step', count_step)
