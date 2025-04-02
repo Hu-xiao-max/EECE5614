@@ -138,12 +138,13 @@ class policy:
                     action_next_index = self.greedy_action(next_state)
                     next_pick_action = self.action_list[action_next_index]
                     next_select_result = self.custom_random()
-                    next_next_i, next_next_j = self.action_take(next_pick_action, state[0], state[1], next_select_result)
-                    next_real_i, next_real_j, next_reward = self.next_state_reward(state[0], state[1], next_next_i, next_next_j)
+                    next_next_i, next_next_j = self.action_take(next_pick_action, next_state[0], next_state[1], next_select_result)
+                    next_real_i, next_real_j, next_reward = self.next_state_reward(next_state[0], next_state[1], next_next_i, next_next_j)
                     Q_next_select = self.Q_value_list[action_next_index]
                     next_Q = Q_next_select[next_real_i, next_real_j]
 
-
+                    if state == end_state:
+                        break
 
                     Q_select[state[0], state[1]] = Q_select[state[0], state[1]] + self.alpha*(reward + self.gamma * next_Q - Q_select[state[0], state[1]])
 
@@ -158,8 +159,7 @@ class policy:
                     else:
                         reward_list.append(reward + reward_list[-1])
 
-                if state == end_state:
-                    break
+                
             print(reward_list[-1])
             reward_acc_list.append(reward_list[-1])
 
