@@ -140,14 +140,15 @@ class policy:
                     delta = reward + self.gamma * self.V[s_next] - self.V[s]
                     self.V[s] += self.alpha * delta
 
-                    probs = self.Action[s]
+                    logits = self.Action[s]
+                    exp_logits = np.exp(logits - np.max(logits))
+                    probs = exp_logits / np.sum(exp_logits)
+
                     for a in range(4):
                         if a == action_index:
                             self.Action[s][a] += self.beta * delta * (1 - probs[a])
                         else:
                             self.Action[s][a] -= self.beta * delta * probs[a]
-                    self.Action[s] = np.clip(self.Action[s], 1e-5, 1.0)
-                    self.Action[s] /= np.sum(self.Action[s])
 
                     state = [real_i, real_j]
 
@@ -252,7 +253,9 @@ class policy:
     
     def greedy_action(self, state):
         row, col = state
-        probs = self.Action[row, col]
+        logits = self.Action[row, col]
+        exp_logits = np.exp(logits - np.max(logits))  # 防止溢出
+        probs = exp_logits / np.sum(exp_logits)
         return np.random.choice(4, p=probs)
                     
                 
