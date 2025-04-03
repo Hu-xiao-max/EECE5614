@@ -23,9 +23,7 @@ class policy:
         self.Value_down = np.zeros([20, 20])
         self.Q_value_list = [self.Value_up, self.Value_down, self.Value_left, self.Value_right]
 
-        self.V = np.zeros([20, 20])
-        self.beta = 0.05
-        self.Action = np.ones([20, 20, 4]) / 4.0
+        self.Action = np.zeros([20, 20])
         self.action_list= [11,12,13,14]#up,down,left,right
         self.action_map = {11: (-1, 0), 12: (1, 0), 13: (0, -1), 14: (0, 1)}
 
@@ -103,14 +101,10 @@ class policy:
         End:[3, 13]
         '''
         '''
-        使用 actor-critic 算法：
-        1. 根据当前策略（epsilon-greedy）选择动作 a
-        2. 执行动作 a，观察奖励 r 和下一状态 s'
-        3. 计算 TD 误差：delta = r + gamma * V(s') - V(s)
-        4. 更新状态值函数：V(s) <- V(s) + alpha * delta
-        5. 根据策略梯度更新策略：
-             对于执行的动作 a：pi(s,a) <- pi(s,a) + beta * delta * (1 - pi(s,a))
-             对于其他动作：pi(s,a') <- pi(s,a') - beta * delta * pi(s,a')
+        Choose a form s using policy (eplison greedy policy) derived form Q
+        Take action observe r, s
+        Q(s,a) <- Q(s,a)+alpha[r+gamma max Q (s',a)-Q(s,a)]
+        
         '''
         start_state = [15,4]
         end_state = [3,13]
@@ -124,30 +118,25 @@ class policy:
             
                 if not self.env[state[0], state[1]] == 1 :# no wall
                     action_index = self.greedy_action(state)
-                    # print('action_index', action_index)
+                    print('action_index', action_index)
                     
                     pick_action = self.action_list[action_index]
+
+                    self.Action[state[0], state[1]] = pick_action
 
                     select_result = self.custom_random()
 
                     next_i, next_j = self.action_take(pick_action, state[0], state[1], select_result)
                     real_i, real_j, reward = self.next_state_reward(state[0], state[1], next_i, next_j)
 
-                    s = tuple(state)
-                    s_next = (real_i, real_j)
+                    Q_select = self.Q_value_list[action_index]
+                    
+                    max_Q = max([self.Value_up[real_i, real_j], self.Value_down[real_i, real_j], 
+                                self.Value_left[real_i, real_j], self.Value_right[real_i, real_j]])
 
-                    delta = reward + self.gamma * self.V[s_next] - self.V[s]
-                    self.V[s] += self.alpha * delta
+                    Q_select[state[0], state[1]] = Q_select[state[0], state[1]] + self.alpha*(reward + self.gamma * max_Q - Q_select[state[0], state[1]])
 
-                    logits = self.Action[s]
-                    exp_logits = np.exp(logits - np.max(logits))
-                    probs = exp_logits / np.sum(exp_logits)
-
-                    for a in range(4):
-                        if a == action_index:
-                            self.Action[s][a] += self.beta * delta * (1 - probs[a])
-                        else:
-                            self.Action[s][a] -= self.beta * delta * probs[a]
+                    self.Action[state[0], state[1]] = pick_action
 
                     state = [real_i, real_j]
 
@@ -163,14 +152,12 @@ class policy:
             print(reward_list[-1])
             reward_acc_list.append(reward_list[-1])
 
-        # 根据当前策略概率，选出每个状态下概率最大的动作
-        best_actions = np.argmax(self.Action, axis=2)  # 得到每个状态最优动作的索引
-        # 将动作索引转换为实际动作代码（self.action_list 中的值）
-        data = np.zeros((20, 20), dtype=int)
-        for i in range(20):
-            for j in range(20):
-                data[i, j] = self.action_list[best_actions[i, j]]
-        print('!!!!!!!!!!!!!!!!! Best actions:', data)
+        policy = self.Action.flatten()
+        print('!!!!!!!!!!!!!!!!!', policy)
+        # print(len(policy))
+
+        # 将数据重塑为 20x20 矩阵
+        data = policy.reshape(20, 20)
 
         # 创建绘图
         fig, ax = plt.subplots(figsize=(10, 10))
@@ -204,7 +191,7 @@ class policy:
 
         self.visualize_path()
 
-        # 绘制 reward 曲线
+                # 绘制 reward 曲线
         plt.figure(figsize=(8, 4))
         plt.plot(reward_acc_list, label='Reward per step')
         plt.xlabel('Step')
@@ -238,6 +225,7 @@ class policy:
 
         return value
     
+    
     def custom_random(self):
         p = self.p
         r = random.random()
@@ -251,15 +239,38 @@ class policy:
 
     
     def greedy_action(self, state):
+        
         row, col = state
-        logits = self.Action[row, col]
-        exp_logits = np.exp(logits - np.max(logits))  # 防止溢出
-        probs = exp_logits / np.sum(exp_logits)
-        return np.random.choice(4, p=probs)
+        
+        H_list = []
+        
+        for Value in self.Q_value_list:
+            Value[row, col]
+            H_list.append(np.exp(Value[row, col]))
+        
+        sum_H = 0
+        for H_value in H_list:
+            sum_H += H_value
+        
+        prob_list = []
+
+        for H_v in H_list:
+            prob_list.append(H_v/sum_H)
+
+        actions = [0, 1, 2, 3]
+
+        sampled_action = np.random.choice(actions, p=prob_list)
+
+        return sampled_action
+
+        
+             
+        
+            
+            
                     
                 
      
-
 
     def extract_path(self):
         position = [15,4]
@@ -269,8 +280,7 @@ class policy:
         while position != [3, 13] and position not in visited:
             visited.append(position)
             i, j = position
-            action_index = np.argmax(self.Action[i, j])
-            action = self.action_list[action_index]
+            action = self.Action[i, j]
             if action in self.action_map:
                 di, dj = self.action_map[action]
                 next_position = (i + di, j + dj)
@@ -311,25 +321,7 @@ class policy:
         plt.show()
                      
 
-    def value_action(self,pick_action, i, j, before_value):
-        # policy Evalution
-        p = self.p
-        next_i1, next_j1 = self.action_take(pick_action, i, j, 0)
-        real_i1, real_j1, reward1 = self.next_state_reward(i, j, next_i1, next_j1)
-        value1 = (1-p)*(reward1+self.gamma*before_value[real_i1, real_j1])
-
-        next_i2, next_j2 = self.action_take(pick_action, i, j, 1)
-        real_i2, real_j2, reward2 = self.next_state_reward(i, j, next_i2, next_j2)
-        value2 = (p/2)*(reward2+self.gamma*before_value[real_i2, real_j2])
-
-        next_i3, next_j3 = self.action_take(pick_action, i, j, 2)
-        real_i3, real_j3, reward3 = self.next_state_reward(i, j, next_i3, next_j3)
-        value3 = (p/2)*(reward3+self.gamma*before_value[real_i3, real_j3])
-
-        value = value1+value2+value3
-
-        return value
-
+ 
                             
 
     def transfer(self):
