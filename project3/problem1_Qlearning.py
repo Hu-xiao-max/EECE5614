@@ -405,7 +405,7 @@ class policy:
                 ax.add_patch(plt.Rectangle((j - 0.5, 19 - i - 0.5), 1, 1, color=color, ec='gray'))
 
         # Draw path
-        for idx in range(len(self.path) - 4):
+        for idx in range(len(self.path) - 1):
             i1, j1 = self.path[idx]
             i2, j2 = self.path[idx + 1]
             

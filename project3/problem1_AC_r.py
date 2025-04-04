@@ -1,7 +1,6 @@
 import numpy as np
 import random
 import copy
-import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 
@@ -16,6 +15,10 @@ class policy:
         self.epsilon = 0.1
         
         self.env = self.env_define()
+
+
+        self.Value = np.zeros([20, 20])
+        self.H_val = np.zeros([20, 20])
 
         self.Value_left = np.zeros([20, 20])
         self.Value_right = np.zeros([20, 20])
@@ -117,26 +120,26 @@ class policy:
             for _ in range(1000):#max 1000 or goal state    
             
                 if not self.env[state[0], state[1]] == 1 :# no wall
-                    action_index = self.greedy_action(state)
-                    print('action_index', action_index)
+                    action_index, pi = self.greedy_action(state)
+                    # print('action_index', action_index)
                     
                     pick_action = self.action_list[action_index]
 
                     self.Action[state[0], state[1]] = pick_action
 
                     select_result = self.custom_random()
-
                     next_i, next_j = self.action_take(pick_action, state[0], state[1], select_result)
                     real_i, real_j, reward = self.next_state_reward(state[0], state[1], next_i, next_j)
 
-                    Q_select = self.Q_value_list[action_index]
-                    
-                    max_Q = max([self.Value_up[real_i, real_j], self.Value_down[real_i, real_j], 
-                                self.Value_left[real_i, real_j], self.Value_right[real_i, real_j]])
 
-                    Q_select[state[0], state[1]] = Q_select[state[0], state[1]] + self.alpha*(reward + self.gamma * max_Q - Q_select[state[0], state[1]])
+                    sigma = reward + self.gamma * self.Value[real_i, real_j] - self.Value[state[0], state[1]]
 
-                    self.Action[state[0], state[1]] = pick_action
+                    self.Value[state[0], state[1]] = self.Value[state[0], state[1]] + self.alpha * sigma
+
+                    H_select = self.Q_value_list[action_index]
+
+                    H_select[state[0], state[1]] = H_select[state[0], state[1]] + 0.05 * sigma * (1 - pi) 
+
 
                     state = [real_i, real_j]
 
@@ -153,7 +156,7 @@ class policy:
             reward_acc_list.append(reward_list[-1])
 
         policy = self.Action.flatten()
-        print('!!!!!!!!!!!!!!!!!', policy)
+        print('!!!!!!!!!!!!!!!!!', self.Value)
         # print(len(policy))
 
         # 将数据重塑为 20x20 矩阵
@@ -191,7 +194,7 @@ class policy:
 
         self.visualize_path()
 
-                # 绘制 reward 曲线
+        # 绘制 reward 曲线
         plt.figure(figsize=(8, 4))
         plt.plot(reward_acc_list, label='Reward per step')
         plt.xlabel('Step')
@@ -243,10 +246,9 @@ class policy:
         row, col = state
         
         H_list = []
-        
-        for Value in self.Q_value_list:
-            Value[row, col]
-            H_list.append(np.exp(Value[row, col]))
+        for H_sa in self.Q_value_list:
+            H_list.append(np.exp(H_sa[row, col]))
+            # print('H_sa',H_sa[row, col])
         
         sum_H = 0
         for H_value in H_list:
@@ -259,18 +261,17 @@ class policy:
 
         actions = [0, 1, 2, 3]
 
+        # Probility
         sampled_action = np.random.choice(actions, p=prob_list)
 
-        return sampled_action
+        # # Max
+        # max_value = max(prob_list)
+        # sampled_action = prob_list.index(max_value)  
 
+        pi = prob_list[sampled_action]
         
+        return sampled_action, pi
              
-        
-            
-            
-                    
-                
-     
 
     def extract_path(self):
         position = [15,4]
@@ -308,7 +309,11 @@ class policy:
                 ax.add_patch(plt.Rectangle((j - 0.5, 19 - i - 0.5), 1, 1, color=color, ec='gray'))
 
         # Draw path
-        for idx in range(len(self.path) - 4):
+        # ！！！！！！！！！！！！！！！modify ！！！！！！！！！！！！！！
+        '''
+        Modify
+        '''
+        for idx in range(len(self.path) - 1):
             i1, j1 = self.path[idx]
             i2, j2 = self.path[idx + 1]
             
@@ -322,20 +327,7 @@ class policy:
                      
 
  
-                            
-
-    def transfer(self):
-
-        p = self.p
-        prob_do = 1 - p # 0
-        prob_left = p / 2# 1
-        prob_right = p / 2# 2
-
-        list_p = [prob_do, prob_left, prob_right]
-        result = random.choices([0, 1, 2], weights=[prob_do, prob_left, prob_right])[0]
-        # return acutaly state with probability
-        # list_p[result]
-        return result
+                        
             
     def action_take(self,action, t_i, t_j, result):
         o_i = t_i

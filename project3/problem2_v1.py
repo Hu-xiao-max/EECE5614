@@ -425,15 +425,19 @@ def extract_policy_from_actor_critic(env, theta):
 
 def print_policies(env, all_policies):
     """
-    Print the final policy from each run in a human-readable format.
-    all_policies: list of 10 policies, each policy is a list of length 16
-    (the action for each of the 16 states).
+    Print the final policies as a 10x16 matrix.
+    Each row corresponds to one independent experiment (10 runs),
+    and each column corresponds to one state (16 states).
+    The action vector for each state is printed as: "a1 a2 a3 a4".
     """
-    for run_idx, policy in enumerate(all_policies):
-        print(f"--- Run {run_idx+1} Policy ---")
-        for s_idx, action in enumerate(policy):
-            print(f"State {env.state_space[s_idx]} -> Action {action}")
-        print()
+    for policy in all_policies:
+        row = []
+        for action in policy:
+            # Convert the action vector to a space-separated string
+            action_str = " ".join(str(a) for a in action)
+            row.append(action_str)
+        # Print the row with each action vector separated by a delimiter
+        print(" | ".join(row))
 
 ##############################################################################
 # 5. Example Main (Compare Q-Learning, SARSA, SARSA-lambda, Actor-Critic)
@@ -524,6 +528,48 @@ if __name__ == "__main__":
         ac_policies.append(extract_policy_from_actor_critic(env_for_eval, theta))
 
     # 4) Plot average learning curves
+
+    # Plot Q-Learning
+    plt.figure(figsize=(8, 5))
+    plt.plot(mean_qlearning, label='Q-Learning', color='blue')
+    plt.xlabel('Episode')
+    plt.ylabel('Average Return')
+    plt.title('Q-Learning')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Plot SARSA
+    plt.figure(figsize=(8, 5))
+    plt.plot(mean_sarsa, label='SARSA', color='orange')
+    plt.xlabel('Episode')
+    plt.ylabel('Average Return')
+    plt.title('SARSA')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Plot SARSA(λ)
+    plt.figure(figsize=(8, 5))
+    plt.plot(mean_sarsa_lam, label='SARSA(λ)', color='green')
+    plt.xlabel('Episode')
+    plt.ylabel('Average Return')
+    plt.title('SARSA(λ)')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Plot Actor-Critic
+    plt.figure(figsize=(8, 5))
+    plt.plot(mean_ac, label='Actor-Critic', color='black')
+    plt.xlabel('Episode')
+    plt.ylabel('Average Return')
+    plt.title('Actor-Critic')
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+
     plt.figure(figsize=(8, 5))
     plt.plot(mean_qlearning, label='Q-Learning')
     plt.plot(mean_sarsa, label='SARSA')
