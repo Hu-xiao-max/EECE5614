@@ -24,14 +24,16 @@ class MazeEnv:
         # 3 - 红色区域（额外-10，故总reward = -11，即 -1 -10）
         # 4 - 黄色区域（额外-5，故总reward = -6，即 -1 -5）
         self.maze = np.array([
-            [0, 0, 0, 1, 0, 0, 4, 0],
-            [0, 1, 0, 1, 0, 3, 1, 0],
-            [0, 1, 0, 0, 0, 0, 0, 0],
-            [0, 0, 1, 1, 1, 0, 1, 0],
-            [4, 0, 0, 0, 1, 0, 0, 0],
-            [0, 0, 1, 0, 0, 0, 1, 0],
-            [0, 3, 0, 0, 1, 0, 0, 0],
-            [0, 0, 0, 1, 0, 0, 0, 2]  # 目标格在右下角
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 0, 4, 0, 0, 0, 2, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+            [1, 0, 3, 1, 1, 1, 1, 4, 1, 1],
+            [1, 0, 0, 0, 1, 0, 0, 0, 0, 1],
+            [1, 0, 4, 0, 0, 0, 1, 4, 0, 1],
+            [1, 1, 1, 1, 3, 0, 1, 0, 0, 1],
+            [1, 0, 5, 3, 0, 0, 1, 0, 0, 1],
+            [1, 0, 0, 0, 1, 0, 1, 3, 0, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],   # 目标格在右下角
         ])
         self.n_rows, self.n_cols = self.maze.shape
 
@@ -406,39 +408,112 @@ def plot_training(episode_rewards, episode_losses):
 
 def plot_policy(policy, env):
     """
-    绘制策略，每个格子用箭头标出动作
-    动作编号：0-上, 1-右, 2-下, 3-左
+    绘制策略，每个格子用箭头标出动作，并填充颜色块，背景颜色根据迷宫环境中的格子类型设置：
+    0 - 普通空白格（white）
+    1 - 墙壁（black）
+    2 - 目标格（gold）
+    3 - 红色区域（red）
+    4 - 黄色区域（yellow）
+    5 - 蓝色区域（blue）
     """
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    
+    # 定义每个动作对应的箭头符号
     action_arrows = {0: '↑', 1: '→', 2: '↓', 3: '←', -1: '■'}
-    grid = np.full(policy.shape, '', dtype=object)
+    
+    # 使用 env.maze 作为背景颜色块
+    maze = env.maze.copy()
+    colors = ['white', 'black', 'green', 'red', 'yellow', 'blue']
+    cmap = ListedColormap(colors)
+    bounds = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+    norm = BoundaryNorm(bounds, cmap.N)
+    
+    plt.figure()
+    plt.imshow(maze, cmap=cmap, norm=norm, origin='upper')
+    
+    # 在每个格子上标记对应动作的箭头
     for i in range(policy.shape[0]):
         for j in range(policy.shape[1]):
-            # 墙壁或非法格用方块表示
-            grid[i, j] = action_arrows.get(policy[i, j], '?')
-    plt.figure()
-    plt.table(cellText=grid, loc='center', cellLoc='center')
-    plt.axis('off')
+            symbol = action_arrows.get(policy[i, j], '?')
+            plt.text(j, i, symbol, ha='center', va='center', fontsize=14, color='black')
+    
     plt.title("Final Policy (Arrow indicates best action)")
+    plt.axis('off')
     plt.show()
 
-def plot_value_function(value_func):
-    plt.figure()
-    plt.imshow(value_func, cmap='viridis', interpolation='none')
-    plt.colorbar()
+def plot_value_function(value_func, env):
+    """
+    绘制状态价值函数（最大 Q 值），背景采用环境地图的色块，
+    并在每个非墙格内标注状态价值：
+    
+      0 - 普通空白格 (white)
+      1 - 墙壁 (black)
+      2 - 目标格 (gold)
+      3 - 红色区域 (red)
+    4 - 黄色区域 (yellow)
+    5 - 蓝色区域 (blue)
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    import numpy as np
+
+    # 定义颜色映射，与迷宫数值对应
+    colors = ['white', 'black', 'green', 'red', 'yellow', 'blue']
+    cmap = ListedColormap(colors)
+    bounds = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+    norm = BoundaryNorm(bounds, cmap.N)
+
+    plt.figure(figsize=(6, 6))
+    # 根据 env.maze 的数值生成背景颜色块
+    plt.imshow(env.maze, cmap=cmap, norm=norm, origin='upper')
     plt.title("State Value Function (max Q-value)")
+
+    # 在每个非墙格（maze != 1）上标注状态价值
+    for i in range(env.n_rows):
+        for j in range(env.n_cols):
+            if env.maze[i, j] != 1:
+                val = value_func[i, j]
+                if not np.isnan(val):
+                    plt.text(j, i, f"{val:.1f}", ha="center", va="center", fontsize=12, color="black")
+
+    plt.axis('off')
     plt.show()
 
 def plot_path(path, env):
-    # 绘制路径，背景为迷宫地图
+    """
+    绘制路径，背景为迷宫地图。地图块带有颜色，分别代表不同类型区域：
+    0 - 普通空白格（白色）
+    1 - 墙壁（黑色）
+    2 - 目标格（gold）
+    3 - 红色区域（red）
+    4 - 黄色区域（yellow）
+    5 - 蓝色区域（blue）
+    使用箭头标示移动方向，并用散点标记起点与终点
+    """
+    from matplotlib.colors import ListedColormap
+    
     maze = env.maze.copy()
-    # 用颜色标记不同区域
     plt.figure()
-    cmap = plt.cm.get_cmap('Pastel1', 5)
+    # 定义颜色映射，顺序对应迷宫中数值的意义
+    cmap = ListedColormap(['white', 'black', 'green', 'red', 'yellow', 'blue'])
     plt.imshow(maze, cmap=cmap, origin='upper')
+    
     path = np.array(path)
-    # path 中的 x 为列，y 为行
-    plt.plot(path[:,0], path[:,1], marker='o', color='black')
+    # 使用箭头展示路径中每一步的移动
+    for i in range(len(path) - 1):
+        x, y = path[i]
+        x_next, y_next = path[i + 1]
+        dx = x_next - x
+        dy = y_next - y
+        plt.arrow(x, y, dx, dy, head_width=0.3, head_length=0.3, fc='blue', ec='blue')
+    
+    # 标记起点和终点
+    plt.scatter(path[0, 0], path[0, 1], c='green', marker='o', s=100, label='Start')
+    plt.scatter(path[-1, 0], path[-1, 1], c='red', marker='*', s=100, label='Goal')
+    
     plt.title("Path Following the Obtained Policy")
+    plt.legend()
     plt.show()
 
 
@@ -447,7 +522,8 @@ def plot_path(path, env):
 #########################################
 def main():
     # 选择 variant: 'DQN', 'DoubleDQN', 'DuelingDQN'
-    variant = 'DuelingDQN'  # 可改为 'DQN' 或 'DoubleDQN'
+    variant = 'DQN'  # 可改为 'DQN' 或 'DoubleDQN'
+    
     print(f"Training variant: {variant}")
     
     # 创建环境与 agent
@@ -456,7 +532,7 @@ def main():
                      gamma=0.99, lr=1e-3, target_update_eta=1e-3, update_freq=5,
                      epsilon_decay=0.995, epsilon_min=0.1, initial_epsilon=1.0)
     
-    num_episodes = 500
+    num_episodes = 30000
     episode_rewards, episode_losses = agent.train(num_episodes=num_episodes)
     
     # 绘制训练曲线
@@ -466,7 +542,7 @@ def main():
     policy = agent.get_policy()
     value_func = agent.get_value_function()
     plot_policy(policy, env)
-    plot_value_function(value_func)
+    plot_value_function(value_func, env)
 
     # 从一个初始状态出发，获得一条路径
     path = agent.get_path()
