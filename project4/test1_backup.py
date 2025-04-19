@@ -23,10 +23,6 @@ class MazeEnv:
         # 2 - 目标格（goal，reward = +100）
         # 3 - 红色区域（额外-10，故总reward = -11，即 -1 -10）
         # 4 - 黄色区域（额外-5，故总reward = -6，即 -1 -5）
-
-        self.plot_init = True
-
-
         self.maze = np.array([
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
             [1, 0, 4, 0, 0, 0, 2, 0, 0, 1],
@@ -36,7 +32,7 @@ class MazeEnv:
             [1, 0, 4, 0, 0, 0, 1, 4, 0, 1],
             [1, 1, 1, 1, 3, 0, 1, 0, 0, 1],
             [1, 0, 5, 3, 0, 0, 1, 0, 0, 1],
-            [1, 0, 0, 0, 0, 0, 1, 3, 0, 1],
+            [1, 0, 0, 0, 1, 0, 1, 3, 0, 1],
             [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],   # 目标格在右下角
         ])
         self.n_rows, self.n_cols = self.maze.shape
@@ -49,11 +45,6 @@ class MazeEnv:
                         1: (0, 1),
                         2: (1, 0),
                         3: (0, -1)}
-        
-        self.plot_actions = {0: (0, -1),
-                        1: (1, 0),
-                        2: (0, 1),
-                        3: (-1, 0)}
         # 对于垂直与水平方向，确定垂直（perpendicular）的动作
         self.perp = {
             0: [1, 3],  # 若原本向上，则垂直方向为左右
@@ -128,45 +119,6 @@ class MazeEnv:
         
         # 返回状态以 (x,y) 顺序
         return np.array([self.state[1], self.state[0]], dtype=np.float32), reward, done
-    
-    def plot_step(self, action):
-        """
-        根据给定 action 以及扰动概率 P 返回下一个状态、奖励以及是否结束
-        """
-        self.steps += 1
-        if self.plot_init:
-            self.state = [2, 7]
-            self.plot_init = False
-        # 计算预期下一个位置
-        move = self.plot_actions[action]
-        next_row = self.state[0] + move[0]
-        next_col = self.state[1] + move[1]
-        
-        # 检查边界
-        if next_row < 0 or next_row >= self.n_rows or next_col < 0 or next_col >= self.n_cols:
-            # 出界当作撞墙处理
-            reward = -1.8  
-            next_state = self.state  # 原地停留
-        # 检查是否撞墙
-        elif self.maze[next_row, next_col] == 1:
-            reward = -1.8
-            next_state = self.state  # 不动
-        else:
-           
-            next_state = (next_row, next_col)
-        
-        # 更新状态
-        self.state = next_state
-
-        # 判断是否达到终点或步数达到上限
-        done = False
-        if self.maze[self.state[0], self.state[1]] == 2:
-            done = True
-        if self.steps >= self.max_steps:
-            done = True
-        
-        # 返回状态以 (x,y) 顺序
-        return np.array([self.state[0], self.state[1]], dtype=np.float32), done
 
     def render(self):
         # 简单的文本渲染迷宫状态
@@ -404,37 +356,27 @@ class DQNAgent:
                     value_func[i, j] = np.nan
         return value_func
 
-    def get_path(self, start_state=[2, 7]):
+    def get_path(self, start_state=None):
         """
-        从起点开始，依据已计算好的策略(policy)生成一条路径，直至到达目标或达到步数上限
+        从起点开始，依据贪婪策略生成一条路径，直至到达目标或达到步数上限
         """
-        # 计算策略矩阵
-        policy = self.get_policy()
-
-        # 初始化起点
         if start_state is None:
             state = self.env.reset()
         else:
             state = start_state
-
-        print('start_state', start_state)
-
-        path = [state]
+        path = []
+        path.append(state)
         done = False
         steps = 0
-
-        # 根据策略矩阵生成路径
         while not done and steps < self.env.max_steps:
-            x, y = int(state[0]), int(state[1])
-            action = policy[y, x]
-            if action == -1:
-                # 如果策略在当前位置无效（如墙），终止路径搜索
-                break
-            next_state, done = self.env.plot_step(action)
+            state_tensor = torch.FloatTensor(state).unsqueeze(0)
+            with torch.no_grad():
+                q_vals = self.qnet(state_tensor)
+            action = q_vals.argmax().item()
+            next_state, reward, done = self.env.step(action)
             path.append(next_state)
             state = next_state
             steps += 1
-
         return path
 
 
@@ -604,10 +546,9 @@ def main():
     plot_policy(policy, env)
     plot_value_function(value_func, env)
 
-    # # 从一个初始状态出发，获得一条路径
-    # path = agent.get_path()
-    # print('path', path)
-    # plot_path(path, env)
+    # 从一个初始状态出发，获得一条路径
+    path = agent.get_path()
+    plot_path(path, env)
 
 if __name__ == '__main__':
     main()
